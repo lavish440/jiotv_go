@@ -7,10 +7,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/jiotv-go/jiotv_go/v3/cmd"
 	"github.com/jiotv-go/jiotv_go/v3/internal/constants"
-
-	"github.com/urfave/cli/v2"
 )
 
 //go:embed VERSION
@@ -50,9 +50,8 @@ func main() {
 						host = "0.0.0.0"
 					}
 					port := c.String("port")
-					prefork := c.Bool("prefork")
 					configPath := c.String("config")
-					return cmd.JioTVServer(host, port, configPath, prefork)
+					return cmd.JioTVServer(host, port, configPath)
 				},
 				Flags: []cli.Flag{
 					&cli.StringFlag{
@@ -77,10 +76,6 @@ func main() {
 						Name:    "public",
 						Aliases: []string{"P"},
 						Usage:   "Open server to public. This will expose your server outside your local network. Equivalent to passing --host 0.0.0.0",
-					},
-					&cli.BoolFlag{
-						Name:  "prefork",
-						Usage: "Enable prefork. This will enable preforking the server to multiple processes. This is useful for production deployment.",
 					},
 					&cli.BoolFlag{
 						Name:  "skip-update-check",

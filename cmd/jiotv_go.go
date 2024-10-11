@@ -4,6 +4,12 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/filesystem"
+	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/template/html/v2"
+
 	"github.com/jiotv-go/jiotv_go/v3/internal/config"
 	"github.com/jiotv-go/jiotv_go/v3/internal/constants"
 	"github.com/jiotv-go/jiotv_go/v3/internal/handlers"
@@ -14,12 +20,6 @@ import (
 	"github.com/jiotv-go/jiotv_go/v3/pkg/store"
 	"github.com/jiotv-go/jiotv_go/v3/pkg/utils"
 	"github.com/jiotv-go/jiotv_go/v3/web"
-
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/filesystem"
-	"github.com/gofiber/fiber/v2/middleware/logger"
-	"github.com/gofiber/fiber/v2/middleware/recover"
-	"github.com/gofiber/template/html/v2"
 )
 
 // JioTVServer starts the JioTV server.
@@ -27,7 +27,7 @@ import (
 // It then configures the Fiber app with middleware and routes.
 // It starts listening on the provided host and port.
 // Returns an error if listening fails.
-func JioTVServer(host, port, configPath string, prefork bool) error {
+func JioTVServer(host, port, configPath string) error {
 	// Load the config file
 	if err := config.Cfg.Load(configPath); err != nil {
 		return err
@@ -60,7 +60,6 @@ func JioTVServer(host, port, configPath string, prefork bool) error {
 
 	app := fiber.New(fiber.Config{
 		Views:             engine,
-		Prefork:           prefork,
 		StreamRequestBody: true,
 		CaseSensitive:     false,
 		StrictRouting:     false,
