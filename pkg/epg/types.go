@@ -45,14 +45,15 @@ type Desc struct {
 // Programme XML tag structure for EPG
 // Each programme tag represents a show being aired on a channel
 type Programme struct {
-	XMLName  xml.Name `xml:"programme"`    // XML tag name
-	Channel  string   `xml:"channel,attr"` // Channel is attribute of programme tag
-	Start    string   `xml:"start,attr"`   // Start time of the programme
-	Stop     string   `xml:"stop,attr"`    // Stop time of the programme
-	Title    Title    `xml:"title"`        // Title of the programme
-	Desc     Desc     `xml:"desc"`         // Description of the programme
-	Category Category `xml:"category"`     // Category of the programme
-	Icon     Icon     `xml:"icon"`         // Icon of the programme
+	XMLName  xml.Name `xml:"programme"`       // XML tag name
+	Channel  string   `xml:"channel,attr"`    // Channel is attribute of programme tag
+	Start    string   `xml:"start,attr"`      // Start time of the programme
+	Stop     string   `xml:"stop,attr"`       // Stop time of the programme
+	PId      string   `xml:"catchup-id,attr"` // Programme ID for catchup
+	Title    Title    `xml:"title"`           // Title of the programme
+	Desc     Desc     `xml:"desc"`            // Description of the programme
+	Category Category `xml:"category"`        // Category of the programme
+	Icon     Icon     `xml:"icon"`            // Icon of the programme
 }
 
 // EPG XML tag structure
@@ -87,6 +88,7 @@ type EPGObject struct {
 	ShowCategory string `json:"showCategory"`     // Category of the show
 	Description  string `json:"description"`      // Description of the show
 	Title        string `json:"showname"`         // Title of the show
+	ProgrammeId  int64  `json:"srno"`             // Programme ID of the show
 	Thumbnail    string `json:"episodeThumbnail"` // Thumbnail of the show
 	Poster       string `json:"episodePoster"`    // Poster of the show
 }
@@ -96,7 +98,7 @@ type EPGResponse struct {
 	EPG []EPGObject `json:"epg"` // EPG details for a channel
 }
 
-// EpochString is a custom type for unmarshaling epoch from integers to strings in JioTV EPG API
+// EpochString is a custom type for unmarshalling epoch from integers to strings in JioTV EPG API
 type EpochString string
 
 // UnmarshalJSON unmarshals epoch integers to strings from JioTV EPG API

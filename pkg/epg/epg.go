@@ -1,21 +1,24 @@
 package epg
 
 import (
+	"bytes"
 	"compress/gzip"
 	"crypto/rand"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"math/big"
-
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
-	"github.com/jiotv-go/jiotv_go/v3/pkg/scheduler"
-	"github.com/jiotv-go/jiotv_go/v3/pkg/utils"
 	"github.com/schollz/progressbar/v3"
 	"github.com/valyala/fasthttp"
+
+	"github.com/jiotv-go/jiotv_go/v3/pkg/scheduler"
+	"github.com/jiotv-go/jiotv_go/v3/pkg/utils"
 )
 
 const (
@@ -82,12 +85,13 @@ func Init() {
 }
 
 // NewProgramme creates a new Programme with the given parameters.
-func NewProgramme(channelID int, start, stop, title, desc, category, iconSrc string) Programme {
+func NewProgramme(channelID int, start, stop, title, desc, pid, category, iconSrc string) Programme {
 	iconURL := fmt.Sprintf("%s/%s", EPG_POSTER_URL, iconSrc)
 	return Programme{
 		Channel: fmt.Sprint(channelID),
 		Start:   start,
 		Stop:    stop,
+		PId:     pid,
 		Title: Title{
 			Value: title,
 			Lang:  "en",
@@ -136,7 +140,7 @@ func genXML() ([]byte, error) {
 			var epgResponse EPGResponse
 			if err := json.Unmarshal(resp.Body(), &epgResponse); err != nil {
 				// Handle error
-				utils.Log.Printf("Error unmarshaling EPG response for channel %d, offset %d: %v", channel.ID, offset, err)
+				utils.Log.Printf("Error unmarshalling EPG response for channel %d, offset %d: %v", channel.ID, offset, err)
 				// Print response body for debugging
 				utils.Log.Printf("Response body: %s", resp.Body())
 				continue
@@ -145,7 +149,8 @@ func genXML() ([]byte, error) {
 			for _, programme := range epgResponse.EPG {
 				startTime := formatTime(time.UnixMilli(programme.StartEpoch))
 				endTime := formatTime(time.UnixMilli(programme.EndEpoch))
-				programmes = append(programmes, NewProgramme(channel.ID, startTime, endTime, programme.Title, programme.Description, programme.ShowCategory, programme.Poster))
+				programmeId := strconv.FormatInt(programme.ProgrammeId, 10)
+				programmes = append(programmes, NewProgramme(channel.ID, startTime, endTime, programme.Title, programme.Description, programmeId, programme.ShowCategory, programme.Poster))
 			}
 		}
 		bar.Add(1)
@@ -223,31 +228,78 @@ func formatTime(t time.Time) string {
 	return t.Format("20060102150405 -0700")
 }
 
-// GenXMLGz generates XML EPG from JioTV API and writes it to a compressed gzip file.
+// prettyFormatXML takes raw XML data and returns a formatted version of the XML.
+func prettyFormatXML(rawXML []byte) ([]byte, error) {
+	var formattedXML bytes.Buffer
+	decoder := xml.NewDecoder(bytes.NewReader(rawXML))
+	encoder := xml.NewEncoder(&formattedXML)
+	encoder.Indent("", "  ")
+
+	// Tokenize the XML to keep the original structure and formatting
+	for {
+		token, err := decoder.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error decoding XML token: %w", err)
+		}
+
+		// Encode the token into the formatted XML buffer
+		if err := encoder.EncodeToken(token); err != nil {
+			return nil, fmt.Errorf("error encoding XML token: %w", err)
+		}
+	}
+	// Ensure all tokens are flushed to the buffer
+	if err := encoder.Flush(); err != nil {
+		return nil, fmt.Errorf("error flushing XML encoder: %w", err)
+	}
+
+	return formattedXML.Bytes(), nil
+}
+
+// GenXMLGz generates a gzip file with formatted XML content and an XML header.
 func GenXMLGz(filename string) error {
 	utils.Log.Println("Generating XML")
-	xml, err := genXML()
+
+	// Assuming genXML() returns a byte slice of raw XML data
+	xmlData, err := genXML()
 	if err != nil {
-		return err
+		return fmt.Errorf("error generating XML data: %w", err)
 	}
+
 	// Add XML header
 	xmlHeader := `<?xml version="1.0" encoding="UTF-8"?>
-	<!DOCTYPE tv SYSTEM "http://www.w3.org/2006/05/tv">`
-	xml = append([]byte(xmlHeader), xml...)
-	// write to file
+<!DOCTYPE tv SYSTEM "http://www.w3.org/2006/05/tv">`
+
+	// Format the raw XML data using the tokenizer method
+	formattedXML, err := prettyFormatXML(xmlData)
+	if err != nil {
+		utils.Log.Println("Failed to format XML. Writing raw XML data instead.")
+		formattedXML = xmlData // Fall back to using raw XML data
+	}
+
+	// Combine the XML header and the formatted XML data
+	var finalXML bytes.Buffer
+	finalXML.Write([]byte(xmlHeader + "\n"))
+	finalXML.Write(formattedXML)
+
+	// Write the final XML to a gzip file
 	f, err := os.Create(filename)
 	if err != nil {
-		return err
+		return fmt.Errorf("error creating file: %w", err)
 	}
-	defer f.Close() // skipcq: GO-S2307
+	defer f.Close()
 
 	utils.Log.Println("Writing XML to gzip file")
 	gz := gzip.NewWriter(f)
 	defer gz.Close()
 
-	if _, err := gz.Write(xml); err != nil {
-		return err
+	// Write the combined XML header and formatted data to the gzip file
+	if _, err := gz.Write(finalXML.Bytes()); err != nil {
+		return fmt.Errorf("error writing XML data to gzip file: %w", err)
 	}
+
 	fmt.Println("\tEPG file generated successfully")
 	return nil
 }
